@@ -119,10 +119,29 @@ public class ServersController : ControllerBase
         if (server == null) return;
         var nodes = await _db.Nodes.Where(n => n.ServerId == serverId).ToListAsync();
         var config = XrayConfigBuilder.Build(server, nodes);
+        var nodeIds = nodes.Where(n => n.Enabled).Select(n => n.Id).ToArray();
+
+        // 标记为下发中
+        foreach (var n in nodes.Where(n => n.Enabled))
+        {
+            n.DeployStatus = NodeDeployStatus.Applying;
+            n.DeployError = null;
+        }
+        await _db.SaveChangesAsync();
 
         var connectionId = AgentHub.GetConnectionId(serverId);
         if (connectionId != null)
-            await _hub.Clients.Client(connectionId).SendAsync("UpdateXrayConfig", config);
+            await _hub.Clients.Client(connectionId).SendAsync("UpdateXrayConfig", config, nodeIds);
+        else
+        {
+            // Agent 离线——标记失败
+            foreach (var n in nodes.Where(n => n.Enabled))
+            {
+                n.DeployStatus = NodeDeployStatus.Failed;
+                n.DeployError = "Agent 离线，无法下发";
+            }
+            await _db.SaveChangesAsync();
+        }
     }
 
     [HttpPost("nodes/{id:guid}/bindings")]

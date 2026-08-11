@@ -10,12 +10,14 @@ namespace Master.Api.Hubs;
 public class AgentHub : Hub
 {
     private readonly AppDbContext _db;
-    private static readonly Dictionary<Guid, string> _connections = new();
+    private readonly IHubContext<NotificationHub> _notifyHub;
+    private static readonly Dictionary<Guid, string> Connections = new();
 
-    public AgentHub(AppDbContext db) => _db = db;
-
-    public static string? GetConnectionId(Guid serverId) =>
-        _connections.TryGetValue(serverId, out var cid) ? cid : null;
+    public AgentHub(AppDbContext db, IHubContext<NotificationHub> notifyHub)
+    {
+        _db = db;
+        _notifyHub = notifyHub;
+    }
 
     public override async Task OnConnectedAsync()
     {
@@ -26,7 +28,7 @@ public class AgentHub : Hub
             return;
         }
 
-        _connections[serverId.Value] = Context.ConnectionId;
+        Connections[serverId.Value] = Context.ConnectionId;
         var server = await _db.Servers.FindAsync(serverId.Value);
         if (server != null)
         {
@@ -39,10 +41,10 @@ public class AgentHub : Hub
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        var entry = _connections.FirstOrDefault(kv => kv.Value == Context.ConnectionId);
+        var entry = Connections.FirstOrDefault(kv => kv.Value == Context.ConnectionId);
         if (entry.Key != Guid.Empty)
         {
-            _connections.Remove(entry.Key);
+            Connections.Remove(entry.Key);
             var server = await _db.Servers.FindAsync(entry.Key);
             if (server != null)
             {
@@ -98,15 +100,27 @@ public class AgentHub : Hub
 
     public async Task ReportConfigApplyResult(Guid nodeId, bool success, string? error)
     {
-        if (nodeId != Guid.Empty)
+        _ = Task.Run(async () =>
         {
-            var node = await _db.Nodes.FindAsync(nodeId);
-            if (node != null && !success)
+            try
             {
-                node.Enabled = false;
-                await _db.SaveChangesAsync();
+                var node = await _db.Nodes.FindAsync(nodeId);
+                if (node != null)
+                {
+                    node.DeployStatus = success ? NodeDeployStatus.Success : NodeDeployStatus.Failed;
+                    node.DeployError = success ? null : error;
+                    node.DeployedAt = DateTime.UtcNow;
+                    if (!success) node.Enabled = false;
+                    await _db.SaveChangesAsync();
+                }
             }
-        }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"节点回执落库失败: {ex.Message}");
+            }
+            // 广播给前端（部署状态变更）
+            await _notifyHub.Clients.All.SendAsync("NodeDeployStatusChanged", nodeId, success, error);
+        });
     }
 
     private Guid? ValidateRequest()

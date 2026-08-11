@@ -107,6 +107,60 @@ public class UsersController : ControllerBase
         return Ok(up);
     }
 
+    /// <summary>订阅信息（链接 + 绑定节点 + 流量）</summary>
+    [HttpGet("{id:guid}/subscription-info")]
+    public async Task<IActionResult> SubscriptionInfo(Guid id)
+    {
+        var user = await _db.Users.FindAsync(id);
+        if (user == null) return NotFound();
+        if (user.Disabled) return Ok(new { success = false, message = "用户已禁用" });
+
+        var bindings = await _db.NodeUserBindings
+            .Where(b => b.UserId == id)
+            .Include(b => b.Node)
+            .ThenInclude(n => n!.Server)
+            .ToListAsync();
+
+        var nodes = bindings
+            .Where(b => b.Node != null && b.Node.Enabled && b.Node.DeployStatus == NodeDeployStatus.Success)
+            .Select(b => new
+            {
+                b.Node!.Id, b.Node.Name, b.Node.Protocol, b.Node.Port,
+                ServerName = b.Node.Server?.Name,
+                b.Node.DeployStatus
+            });
+
+        var baseUrl = $"{Request.Scheme}://{Request.Host}";
+        return Ok(new
+        {
+            success = true,
+            username = user.Username,
+            subscription_token = user.SubscriptionToken,
+            subscription_url = $"{baseUrl}/sub/{user.SubscriptionToken}",
+            node_count = nodes.Count(),
+            nodes
+        });
+    }
+
+    /// <summary>重置订阅 Token（旧链接立即失效）</summary>
+    [HttpPost("{id:guid}/subscription-token/reset")]
+    public async Task<IActionResult> ResetToken(Guid id)
+    {
+        var user = await _db.Users.FindAsync(id);
+        if (user == null) return NotFound();
+        user.SubscriptionToken = GenerateToken();
+        await _db.SaveChangesAsync();
+        var baseUrl = $"{Request.Scheme}://{Request.Host}";
+        return Ok(new { success = true, subscription_token = user.SubscriptionToken, subscription_url = $"{baseUrl}/sub/{user.SubscriptionToken}" });
+    }
+
+    private static string GenerateToken()
+    {
+        const string chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        var random = new Random();
+        return new string(Enumerable.Repeat(chars, 16).Select(s => s[random.Next(s.Length)]).ToArray());
+    }
+
     [HttpGet("{id:guid}/plans")]
     public async Task<IActionResult> GetPlans(Guid id) =>
         Ok(await _db.UserPlans.Where(p => p.UserId == id).ToListAsync());

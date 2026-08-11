@@ -25,6 +25,7 @@ builder.Services.AddHostedService<Master.Api.Services.CertificateRenewalService>
 
 // SignalR Agent Hub
 builder.Services.AddSignalR();
+builder.Services.AddHttpClient();
 
 // JWT
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "dev-secret-key-please-change-in-production-0123456789";
@@ -67,6 +68,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<Master.Api.Hubs.AgentHub>("/hubs/agent");
+app.MapHub<Master.Api.Hubs.NotificationHub>("/hubs/notify");
 app.MapFallbackToFile("index.html");
 
 app.Run();

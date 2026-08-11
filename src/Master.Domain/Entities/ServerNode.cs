@@ -31,12 +31,29 @@ public class Node
     public Guid Id { get; set; }
     public Guid ServerId { get; set; }
     public string Name { get; set; } = string.Empty;
-    public ProxyProtocol Protocol { get; set; } = ProxyProtocol.VLESS;
+    public ProxyProtocol Protocol { get; set; }
     public int Port { get; set; }
     public string ConfigJson { get; set; } = "{}";
     public bool Enabled { get; set; } = true;
     public double RateMultiplier { get; set; } = 1.0;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    // 部署状态（Step D）
+    public NodeDeployStatus DeployStatus { get; set; } = NodeDeployStatus.Pending;
+    public string? DeployError { get; set; }
+    public DateTime? DeployedAt { get; set; }
+
+    // 导航属性
+    public Server? Server { get; set; }
+    public ICollection<NodeUserBinding>? Bindings { get; set; }
+}
+
+public enum NodeDeployStatus
+{
+    Pending = 0,   // 未启用/待部署
+    Applying = 1,  // 下发中
+    Success = 2,   // 已部署成功
+    Failed = 3     // 部署失败
 }
 
 public enum ProxyProtocol

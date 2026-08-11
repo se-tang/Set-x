@@ -6,6 +6,9 @@ import Servers from './pages/Servers'
 import ServerDetail from './pages/ServerDetail'
 import Users from './pages/Users'
 import Plans from './pages/Plans'
+import Nodes from './pages/Nodes'
+import Subscriptions from './pages/Subscriptions'
+import { ToastProvider } from './components/Toast'
 
 export function getToken(): string | null {
   return localStorage.getItem('setx_token')
@@ -52,8 +55,10 @@ function Layout({ children }: { children: React.ReactNode }) {
         <nav>
           <a className={isActive('/') ? 'active' : ''} onClick={() => nav('/')}>📊 总览</a>
           <a className={loc.pathname.startsWith('/servers') ? 'active' : ''} onClick={() => nav('/servers')}>🖥️ 服务器</a>
+          <a className={loc.pathname.startsWith('/nodes') ? 'active' : ''} onClick={() => nav('/nodes')}>🔗 节点</a>
           <a className={loc.pathname.startsWith('/users') ? 'active' : ''} onClick={() => nav('/users')}>👥 用户</a>
           <a className={loc.pathname.startsWith('/plans') ? 'active' : ''} onClick={() => nav('/plans')}>📦 套餐</a>
+          <a className={loc.pathname.startsWith('/subscriptions') ? 'active' : ''} onClick={() => nav('/subscriptions')}>🔑 订阅</a>
         </nav>
         <div className="sidebar-footer">
           <div className="user-row"><span className="avatar">{(user[0] || 'A').toUpperCase()}</span><span>{user}</span></div>
@@ -67,6 +72,7 @@ function Layout({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
+    <ToastProvider>
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/" element={
@@ -84,7 +90,14 @@ export default function App() {
       <Route path="/plans" element={
         <RequireAuth><Layout><Plans /></Layout></RequireAuth>
       } />
+      <Route path="/nodes" element={
+        <RequireAuth><Layout><Nodes /></Layout></RequireAuth>
+      } />
+      <Route path="/subscriptions" element={
+        <RequireAuth><Layout><Subscriptions /></Layout></RequireAuth>
+      } />
     </Routes>
+    </ToastProvider>
   )
 }
 

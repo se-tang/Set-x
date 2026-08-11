@@ -76,11 +76,19 @@ public class AgentWorker : BackgroundService
     {
         if (_hub == null) return;
 
-        _hub.On<string>("UpdateXrayConfig", async configJson =>
+        _hub.On<string, Guid[]>("UpdateXrayConfig", async (configJson, nodeIds) =>
         {
-            _logger.LogInformation("收到配置下发");
+            _logger.LogInformation("收到配置下发（{Count} 个节点）", nodeIds?.Length ?? 0);
             var ok = await _xray.ApplyConfigAsync(configJson);
-            await _hub!.InvokeAsync("ReportConfigApplyResult", Guid.Empty, ok, ok ? null : "config test failed");
+            if (nodeIds is { Length: > 0 })
+            {
+                foreach (var nid in nodeIds)
+                    await _hub!.InvokeAsync("ReportConfigApplyResult", nid, ok, ok ? null : "xray -test 校验失败");
+            }
+            else
+            {
+                await _hub!.InvokeAsync("ReportConfigApplyResult", Guid.Empty, ok, ok ? null : "xray -test 校验失败");
+            }
         });
 
         _hub.On("RestartXray", () =>
