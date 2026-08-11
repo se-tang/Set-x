@@ -1,13 +1,13 @@
 using Certes;
 using Certes.Acme;
 using Certes.Acme.Resource;
-using Master.Infrastructure;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Master.Api.Services.Certificates;
 
 /// <summary>
 /// ACME 证书签发服务（Let's Encrypt DNS-01）
+/// Certes 2.5 API：无 CancellationToken 参数（同步 Task API）
 /// </summary>
 public class CertificateService
 {
@@ -23,14 +23,14 @@ public class CertificateService
         string domain, IDnsProvider dns, string acmeEmail, CancellationToken ct)
     {
         var acme = new AcmeContext(WellKnownServers.LetsEncryptV2);
-        var account = await acme.NewAccount(acmeEmail, termsOfServiceAgreed: true, ct);
-        var order = await acme.NewOrder(new[] { domain }, ct);
-        var authz = (await order.Authorizations(ct)).First();
+        var account = await acme.NewAccount(acmeEmail, termsOfServiceAgreed: true);
+        var order = await acme.NewOrder(new[] { domain });
+        var authz = (await order.Authorizations()).First();
 
-        var dnsChallenge = await authz.Dns(ct);
+        var dnsChallenge = await authz.Dns();
         var txtValue = acme.AccountKey.DnsTxt(dnsChallenge.Token);
 
-        _logger.LogInformation("创建 DNS TXT 记录: _acme-challenge.{Domain} = {Txt}", domain, txtValue);
+        _logger.LogInformation("创建 DNS TXT 记录: _acme-challenge.{Domain}", domain);
         await dns.CreateTxtRecordAsync(domain, txtValue, ct);
 
         try
@@ -40,8 +40,8 @@ public class CertificateService
             for (int attempt = 0; attempt < 30; attempt++)
             {
                 await Task.Delay(TimeSpan.FromSeconds(5), ct);
-                await dnsChallenge.Validate(ct);
-                if (dnsChallenge.Status == ChallengeStatus.Valid)
+                var challenge = await dnsChallenge.Validate();
+                if (challenge.Status == ChallengeStatus.Valid)
                 {
                     validated = true;
                     break;
@@ -55,13 +55,13 @@ public class CertificateService
             // 等待订单 ready 并签发
             for (int attempt = 0; attempt < 30; attempt++)
             {
-                var refreshed = await order.Resource(ct);
+                var refreshed = await order.Resource();
                 if (refreshed.Status == OrderStatus.Ready) break;
                 await Task.Delay(TimeSpan.FromSeconds(3), ct);
             }
 
             var certKey = KeyFactory.NewKey(KeyAlgorithm.RS256);
-            var cert = await order.Generate(new CsrInfo { CommonName = domain }, certKey, ct);
+            var cert = await order.Generate(new CsrInfo { CommonName = domain }, certKey);
             return (cert.ToPem(), certKey.ToPem());
         }
         finally

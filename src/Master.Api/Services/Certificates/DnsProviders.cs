@@ -38,7 +38,7 @@ public class CloudflareDnsProvider : IDnsProvider
     public async Task DeleteTxtRecordAsync(string domain, string txtValue, CancellationToken ct)
     {
         var (zoneId, recordName) = await ResolveZoneAsync(domain, ct);
-        var records = await _http.GetFromJsonAsync<CfResponse<CfRecord[]>>(
+        var records = await _http.GetFromJsonAsync<CfResponse<CfRecord>>(
             $"{ApiBase}/zones/{zoneId}/dns_records?type=TXT&name={recordName}", ct);
         foreach (var r in records?.Result ?? Array.Empty<CfRecord>())
         {
@@ -54,7 +54,7 @@ public class CloudflareDnsProvider : IDnsProvider
         for (int i = 0; i < parts.Length - 1; i++)
         {
             var zone = string.Join('.', parts.Skip(i));
-            var resp = await _http.GetFromJsonAsync<CfResponse<CfZone[]>>(
+            var resp = await _http.GetFromJsonAsync<CfResponse<CfZone>>(
                 $"{ApiBase}/zones?name={zone}", ct);
             if (resp?.Result is { Length: > 0 } zones)
             {
