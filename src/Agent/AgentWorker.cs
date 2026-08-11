@@ -51,7 +51,7 @@ public class AgentWorker : BackgroundService
                         o.Headers["X-Timestamp"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
                         o.Headers["X-Signature"] = Sign(_config.ServerId, _config.AgentToken);
                     })
-                    .WithAutomaticReconnect(new[] { TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(4), TimeSpan.FromSeconds(8), TimeSpan.FromSeconds(16), TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(60) })
+                    .WithAutomaticReconnect() // 无限重连（0,2,10,30s 递增后每 30s）
                     .Build();
 
                 RegisterHandlers();
@@ -142,22 +142,26 @@ public class AgentWorker : BackgroundService
         var interval = TimeSpan.FromSeconds(Math.Max(5, _config.ReportIntervalSeconds));
         while (!ct.IsCancellationRequested)
         {
+            // 连接断开检测：断开即抛异常 → 外层捕获 → 退避重连（治本：不再静默死连）
+            if (_hub == null || _hub.State != HubConnectionState.Connected)
+            {
+                _logger.LogWarning("主控连接已断开，触发重连");
+                throw new InvalidOperationException("connection lost");
+            }
+
             try
             {
-                if (_hub != null && _hub.State == HubConnectionState.Connected)
+                var (up, down) = await _stats.CollectDeltaAsync(ct);
+                await _hub.InvokeAsync("ReportStatus", new
                 {
-                    var (up, down) = await _stats.CollectDeltaAsync(ct);
-                    await _hub.InvokeAsync("ReportStatus", new
-                    {
-                        serverId = _config.ServerId,
-                        xrayAlive = _xray.IsRunning,
-                        cpuPercent = GetCpuPercent(),
-                        memMb = GetMemMb(),
-                        uploadBytes = up,
-                        downloadBytes = down,
-                        timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
-                    }, ct);
-                }
+                    serverId = _config.ServerId,
+                    xrayAlive = _xray.IsRunning,
+                    cpuPercent = GetCpuPercent(),
+                    memMb = GetMemMb(),
+                    uploadBytes = up,
+                    downloadBytes = down,
+                    timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+                }, ct);
             }
             catch (Exception ex)
             {

@@ -10,12 +10,14 @@ namespace Master.Api.Hubs;
 public class AgentHub : Hub
 {
     private readonly AppDbContext _db;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly IHubContext<NotificationHub> _notifyHub;
     private static readonly Dictionary<Guid, string> Connections = new();
 
-    public AgentHub(AppDbContext db, IHubContext<NotificationHub> notifyHub)
+    public AgentHub(AppDbContext db, IServiceScopeFactory scopeFactory, IHubContext<NotificationHub> notifyHub)
     {
         _db = db;
+        _scopeFactory = scopeFactory;
         _notifyHub = notifyHub;
     }
 
@@ -63,58 +65,70 @@ public class AgentHub : Hub
     {
         _ = Task.Run(async () =>
         {
-            var server = await _db.Servers.FindAsync(dto.ServerId);
-            if (server == null) return;
-
-            server.LastSeenAt = DateTime.UtcNow;
-            server.Status = ServerStatus.Online;
-
-            // 流量落库（增量累加到当天记录）
-            if (dto.UploadBytes > 0 || dto.DownloadBytes > 0)
+            try
             {
-                var today = DateOnly.FromDateTime(DateTime.UtcNow);
-                var record = await _db.TrafficRecords
-                    .FirstOrDefaultAsync(t => t.ServerId == dto.ServerId && t.Date == today);
-                if (record == null)
-                {
-                    record = new TrafficRecord
-                    {
-                        Id = Guid.NewGuid(),
-                        ServerId = dto.ServerId,
-                        NodeId = Guid.Empty,
-                        UserId = Guid.Empty, // 用户维度待节点绑定后细分
-                        Date = today,
-                        UploadBytes = dto.UploadBytes,
-                        DownloadBytes = dto.DownloadBytes
-                    };
-                    _db.TrafficRecords.Add(record);
-                }
-                else
-                {
-                    record.UploadBytes += dto.UploadBytes;
-                    record.DownloadBytes += dto.DownloadBytes;
-                }
-            }
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var server = await db.Servers.FindAsync(dto.ServerId);
+                if (server == null) return;
 
-            await _db.SaveChangesAsync();
+                server.LastSeenAt = DateTime.UtcNow;
+                server.Status = ServerStatus.Online;
+
+                // 流量落库（增量累加到当天记录）
+                if (dto.UploadBytes > 0 || dto.DownloadBytes > 0)
+                {
+                    var today = DateOnly.FromDateTime(DateTime.UtcNow);
+                    var record = await db.TrafficRecords
+                        .FirstOrDefaultAsync(t => t.ServerId == dto.ServerId && t.Date == today);
+                    if (record == null)
+                    {
+                        record = new TrafficRecord
+                        {
+                            Id = Guid.NewGuid(),
+                            ServerId = dto.ServerId,
+                            NodeId = Guid.Empty,
+                            UserId = Guid.Empty, // 用户维度待节点绑定后细分
+                            Date = today,
+                            UploadBytes = dto.UploadBytes,
+                            DownloadBytes = dto.DownloadBytes
+                        };
+                        db.TrafficRecords.Add(record);
+                    }
+                    else
+                    {
+                        record.UploadBytes += dto.UploadBytes;
+                        record.DownloadBytes += dto.DownloadBytes;
+                    }
+                }
+
+                await db.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"状态上报落库失败: {ex.Message}");
+            }
         });
         return Task.CompletedTask;
     }
 
-    public async Task ReportConfigApplyResult(Guid nodeId, bool success, string? error)
+    public Task ReportConfigApplyResult(Guid nodeId, bool success, string? error)
     {
+        // 独立 scope：不依赖 Hub 生命周期（避免 disposed context race）
         _ = Task.Run(async () =>
         {
             try
             {
-                var node = await _db.Nodes.FindAsync(nodeId);
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var node = await db.Nodes.FindAsync(nodeId);
                 if (node != null)
                 {
                     node.DeployStatus = success ? NodeDeployStatus.Success : NodeDeployStatus.Failed;
                     node.DeployError = success ? null : error;
                     node.DeployedAt = DateTime.UtcNow;
                     if (!success) node.Enabled = false;
-                    await _db.SaveChangesAsync();
+                    await db.SaveChangesAsync();
                 }
             }
             catch (Exception ex)
@@ -124,6 +138,7 @@ public class AgentHub : Hub
             // 广播给前端（部署状态变更）
             await _notifyHub.Clients.All.SendAsync("NodeDeployStatusChanged", nodeId, success, error);
         });
+        return Task.CompletedTask;
     }
 
     private Guid? ValidateRequest()
