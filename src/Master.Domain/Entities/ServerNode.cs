@@ -71,5 +71,9 @@ public class NodeUserBinding
     public Guid Id { get; set; }
     public Guid NodeId { get; set; }
     public Guid UserId { get; set; }
-    public string PerUserConfigJson { get; set; } = "{}"; // 每用户独立 UUID/密码
+    public string PerUserConfigJson { get; set; } = "{}";
+
+    // 导航属性
+    public Node? Node { get; set; }
+    public User? User { get; set; }
 }

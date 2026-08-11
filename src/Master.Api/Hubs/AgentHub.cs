@@ -19,6 +19,9 @@ public class AgentHub : Hub
         _notifyHub = notifyHub;
     }
 
+    public static string? GetConnectionId(Guid serverId) =>
+        Connections.TryGetValue(serverId, out var cid) ? cid : null;
+
     public override async Task OnConnectedAsync()
     {
         var serverId = ValidateRequest();
