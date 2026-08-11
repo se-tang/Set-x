@@ -9,13 +9,15 @@ public class AgentWorker : BackgroundService
 {
     private readonly AgentConfig _config;
     private readonly XrayProcessManager _xray;
+    private readonly XrayStatsClient _stats;
     private readonly ILogger<AgentWorker> _logger;
     private HubConnection? _hub;
 
-    public AgentWorker(AgentConfig config, XrayProcessManager xray, ILogger<AgentWorker> logger)
+    public AgentWorker(AgentConfig config, XrayProcessManager xray, XrayStatsClient stats, ILogger<AgentWorker> logger)
     {
         _config = config;
         _xray = xray;
+        _stats = stats;
         _logger = logger;
     }
 
@@ -57,10 +59,8 @@ public class AgentWorker : BackgroundService
                 _logger.LogInformation("已连接主控 {Url}", _config.MasterUrl);
                 delay = 1;
 
-                // 上报一次状态
-                await ReportStatusAsync(ct);
-
-                await Task.Delay(Timeout.Infinite, ct);
+                // 定期上报状态 + 流量增量
+                await ReportLoopAsync(ct);
             }
             catch (OperationCanceledException) { break; }
             catch (Exception ex)
@@ -109,6 +109,36 @@ public class AgentWorker : BackgroundService
         catch (Exception ex)
         {
             _logger.LogWarning("状态上报失败: {Error}", ex.Message);
+        }
+    }
+
+    private async Task ReportLoopAsync(CancellationToken ct)
+    {
+        var interval = TimeSpan.FromSeconds(Math.Max(5, _config.ReportIntervalSeconds));
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                if (_hub != null && _hub.State == HubConnectionState.Connected)
+                {
+                    var (up, down) = await _stats.CollectDeltaAsync(ct);
+                    await _hub.InvokeAsync("ReportStatus", new
+                    {
+                        serverId = _config.ServerId,
+                        xrayAlive = _xray.IsRunning,
+                        cpuPercent = GetCpuPercent(),
+                        memMb = GetMemMb(),
+                        uploadBytes = up,
+                        downloadBytes = down,
+                        timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+                    }, ct);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning("状态上报失败: {Error}", ex.Message);
+            }
+            await Task.Delay(interval, ct);
         }
     }
 

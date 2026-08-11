@@ -56,16 +56,42 @@ public class AgentHub : Hub
     // Agent → Master
     public Task ReportStatus(AgentStatusDto dto)
     {
-        // 状态上报：记录 LastSeen（流量聚合在 Step 9 实现）
         _ = Task.Run(async () =>
         {
             var server = await _db.Servers.FindAsync(dto.ServerId);
-            if (server != null)
+            if (server == null) return;
+
+            server.LastSeenAt = DateTime.UtcNow;
+            server.Status = ServerStatus.Online;
+
+            // 流量落库（增量累加到当天记录）
+            if (dto.UploadBytes > 0 || dto.DownloadBytes > 0)
             {
-                server.LastSeenAt = DateTime.UtcNow;
-                server.Status = ServerStatus.Online;
-                await _db.SaveChangesAsync();
+                var today = DateOnly.FromDateTime(DateTime.UtcNow);
+                var record = await _db.TrafficRecords
+                    .FirstOrDefaultAsync(t => t.ServerId == dto.ServerId && t.Date == today);
+                if (record == null)
+                {
+                    record = new TrafficRecord
+                    {
+                        Id = Guid.NewGuid(),
+                        ServerId = dto.ServerId,
+                        NodeId = Guid.Empty,
+                        UserId = Guid.Empty, // 用户维度待节点绑定后细分
+                        Date = today,
+                        UploadBytes = dto.UploadBytes,
+                        DownloadBytes = dto.DownloadBytes
+                    };
+                    _db.TrafficRecords.Add(record);
+                }
+                else
+                {
+                    record.UploadBytes += dto.UploadBytes;
+                    record.DownloadBytes += dto.DownloadBytes;
+                }
             }
+
+            await _db.SaveChangesAsync();
         });
         return Task.CompletedTask;
     }
@@ -110,5 +136,6 @@ public class AgentHub : Hub
         return serverId;
     }
 
-    public record AgentStatusDto(Guid ServerId, bool XrayAlive, int CpuPercent, int MemMb, long Timestamp);
+    public record AgentStatusDto(Guid ServerId, bool XrayAlive, int CpuPercent, int MemMb,
+        long UploadBytes, long DownloadBytes, long Timestamp);
 }

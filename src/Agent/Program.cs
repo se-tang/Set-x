@@ -28,6 +28,7 @@ else
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddSingleton(agentConfig);
 builder.Services.AddSingleton<XrayProcessManager>();
+builder.Services.AddSingleton<XrayStatsClient>();
 builder.Services.AddHostedService<AgentWorker>();
 
 var host = builder.Build();
