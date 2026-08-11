@@ -19,4 +19,8 @@ public class UserPlan
     public DateTime ExpireAt { get; set; }
     public long UsedTrafficBytes { get; set; }
     public bool Active { get; set; } = true;
+
+    // 导航属性
+    public User? User { get; set; }
+    public Plan? Plan { get; set; }
 }

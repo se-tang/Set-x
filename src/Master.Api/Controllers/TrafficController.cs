@@ -73,7 +73,7 @@ public class TrafficController : ControllerBase
     public async Task<IActionResult> UserUsage()
     {
         var users = await _db.Users.Where(u => u.Role == Master.Domain.Entities.UserRole.User).ToListAsync();
-        var plans = await _db.UserPlans.Where(p => p.Active).ToListAsync();
+        var plans = await _db.UserPlans.Where(p => p.Active).Include(p => p.Plan).ToListAsync();
         var traffic = await _db.TrafficRecords.ToListAsync();
 
         var result = users.Select(u =>
