@@ -1,0 +1,92 @@
+import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import Login from './pages/Login'
+import Dashboard from './pages/Dashboard'
+import Servers from './pages/Servers'
+import ServerDetail from './pages/ServerDetail'
+import Users from './pages/Users'
+import Plans from './pages/Plans'
+
+export function getToken(): string | null {
+  return localStorage.getItem('setx_token')
+}
+
+export function api(path: string, options: RequestInit = {}): Promise<any> {
+  const token = getToken()
+  return fetch(`/api${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers || {})
+    }
+  }).then(async (res) => {
+    if (res.status === 401) {
+      localStorage.removeItem('setx_token')
+      window.location.href = '/login'
+      throw new Error('未授权')
+    }
+    const text = await res.text()
+    try { return JSON.parse(text) } catch { return text }
+  })
+}
+
+function Layout({ children }: { children: React.ReactNode }) {
+  const nav = useNavigate()
+  const [user, setUser] = useState('')
+  useEffect(() => {
+    const u = localStorage.getItem('setx_user') || ''
+    setUser(u)
+  }, [])
+  const logout = () => {
+    localStorage.removeItem('setx_token')
+    localStorage.removeItem('setx_user')
+    nav('/login')
+  }
+  return (
+    <div className="layout">
+      <aside className="sidebar">
+        <div className="brand">⚡ Set-x</div>
+        <nav>
+          <a onClick={() => nav('/')}>📊 总览</a>
+          <a onClick={() => nav('/servers')}>🖥️ 服务器</a>
+          <a onClick={() => nav('/users')}>👥 用户</a>
+          <a onClick={() => nav('/plans')}>📦 套餐</a>
+        </nav>
+        <div className="sidebar-footer">
+          <span>{user}</span>
+          <button onClick={logout}>退出</button>
+        </div>
+      </aside>
+      <main className="main">{children}</main>
+    </div>
+  )
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/" element={
+        <RequireAuth><Layout><Dashboard /></Layout></RequireAuth>
+      } />
+      <Route path="/servers" element={
+        <RequireAuth><Layout><Servers /></Layout></RequireAuth>
+      } />
+      <Route path="/servers/:id" element={
+        <RequireAuth><Layout><ServerDetail /></Layout></RequireAuth>
+      } />
+      <Route path="/users" element={
+        <RequireAuth><Layout><Users /></Layout></RequireAuth>
+      } />
+      <Route path="/plans" element={
+        <RequireAuth><Layout><Plans /></Layout></RequireAuth>
+      } />
+    </Routes>
+  )
+}
+
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  if (!getToken()) return <Navigate to="/login" replace />
+  return <>{children}</>
+}

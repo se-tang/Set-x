@@ -59,9 +59,14 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+// 前端静态文件（dist 部署到 wwwroot）
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<Master.Api.Hubs.AgentHub>("/hubs/agent");
+app.MapFallbackToFile("index.html");
 
 app.Run();
