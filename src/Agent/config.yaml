@@ -1,0 +1,7 @@
+master_url: ""
+server_id: ""
+agent_token: ""
+report_interval_seconds: 15
+xray_path: /opt/xray-agent/xray/xray
+xray_config_path: /opt/xray-agent/xray/config.json
+work_dir: /opt/xray-agent
