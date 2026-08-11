@@ -16,8 +16,12 @@ public class PlansController : ControllerBase
     public PlansController(AppDbContext db) => _db = db;
 
     [HttpGet]
-    public async Task<IActionResult> List() =>
-        Ok(await _db.Plans.OrderBy(p => p.Price).ToListAsync());
+    public async Task<IActionResult> List()
+    {
+        // SQLite 不支持 decimal ORDER BY——客户端排序
+        var plans = await _db.Plans.ToListAsync();
+        return Ok(plans.OrderBy(p => p.Price));
+    }
 
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] Plan plan)

@@ -9,6 +9,9 @@ export default function Users() {
   const [password, setPassword] = useState('')
   const [bindPlan, setBindPlan] = useState<Record<string, string>>({})
 
+  // API 返回 role 为数字枚举（0=Admin 1=User）——兼容字符串
+  const isAdmin = (u: any) => u.role === 0 || u.role === 'Admin' || u.role === 'Administrator'
+
   const load = () => { api('/users').then(setUsers).catch(() => {}); api('/plans').then(setPlans).catch(() => {}) }
   useEffect(() => { load() }, [])
 
@@ -69,23 +72,23 @@ export default function Users() {
         <tbody>
           {users.map((u: any) => (
             <tr key={u.id}>
-              <td>{u.username}{u.role === 'Admin' && ' ⭐'}</td>
+              <td>{u.username}{isAdmin(u) && <span className="badge role-admin" style={{marginLeft: 8}}>管理员</span>}</td>
               <td>
                 <code className="sub-token">{u.subscriptionToken}</code>
-                <button onClick={() => copySub(u.subscriptionToken)}>复制</button>
+                <button className="small" onClick={() => copySub(u.subscriptionToken)}>复制</button>
               </td>
-              <td>{u.disabled ? '⛔ 禁用' : '✅ 正常'}</td>
+              <td>{u.disabled ? <span className="badge stop">⛔ 禁用</span> : <span className="badge ok">✅ 正常</span>}</td>
               <td>
                 <div className="row">
                   <select value={bindPlan[u.id] || ''} onChange={(e) => setBindPlan({ ...bindPlan, [u.id]: e.target.value })}>
                     <option value="">选择套餐</option>
                     {plans.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
-                  <button onClick={() => bind(u.id)}>绑定</button>
+                  <button className="small" onClick={() => bind(u.id)}>绑定</button>
                 </div>
               </td>
               <td>
-                <button onClick={() => toggleDisable(u)}>{u.disabled ? '启用' : '禁用'}</button>
+                <button className={`small ${u.disabled ? '' : 'danger'}`} onClick={() => toggleDisable(u)}>{u.disabled ? '启用' : '禁用'}</button>
               </td>
             </tr>
           ))}

@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
@@ -33,6 +33,7 @@ export function api(path: string, options: RequestInit = {}): Promise<any> {
 
 function Layout({ children }: { children: React.ReactNode }) {
   const nav = useNavigate()
+  const loc = useLocation()
   const [user, setUser] = useState('')
   useEffect(() => {
     const u = localStorage.getItem('setx_user') || ''
@@ -43,19 +44,20 @@ function Layout({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('setx_user')
     nav('/login')
   }
+  const isActive = (p: string) => loc.pathname === p || (p === '/' && loc.pathname.startsWith('/servers'))
   return (
     <div className="layout">
       <aside className="sidebar">
-        <div className="brand">⚡ Set-x</div>
+        <div className="brand"><span className="logo">⚡</span> Set-x</div>
         <nav>
-          <a onClick={() => nav('/')}>📊 总览</a>
-          <a onClick={() => nav('/servers')}>🖥️ 服务器</a>
-          <a onClick={() => nav('/users')}>👥 用户</a>
-          <a onClick={() => nav('/plans')}>📦 套餐</a>
+          <a className={isActive('/') ? 'active' : ''} onClick={() => nav('/')}>📊 总览</a>
+          <a className={loc.pathname.startsWith('/servers') ? 'active' : ''} onClick={() => nav('/servers')}>🖥️ 服务器</a>
+          <a className={loc.pathname.startsWith('/users') ? 'active' : ''} onClick={() => nav('/users')}>👥 用户</a>
+          <a className={loc.pathname.startsWith('/plans') ? 'active' : ''} onClick={() => nav('/plans')}>📦 套餐</a>
         </nav>
         <div className="sidebar-footer">
-          <span>{user}</span>
-          <button onClick={logout}>退出</button>
+          <div className="user-row"><span className="avatar">{(user[0] || 'A').toUpperCase()}</span><span>{user}</span></div>
+          <button onClick={logout}>退出登录</button>
         </div>
       </aside>
       <main className="main">{children}</main>

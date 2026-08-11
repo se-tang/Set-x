@@ -31,13 +31,15 @@ export default function Login() {
   return (
     <div className="login-wrap">
       <form className="login-card" onSubmit={submit}>
-        <h1>⚡ Set-x 主控</h1>
+        <div className="logo-big">⚡</div>
+        <h1>Set-x 主控</h1>
+        <div className="login-sub">Xray 多服务器管理与订阅系统</div>
         <input placeholder="用户名" value={username}
           onChange={(e) => setUsername(e.target.value)} />
         <input placeholder="密码" type="password" value={password}
           onChange={(e) => setPassword(e.target.value)} />
         {error && <div className="error">{error}</div>}
-        <button type="submit">登录</button>
+        <button type="submit">登 录</button>
       </form>
     </div>
   )

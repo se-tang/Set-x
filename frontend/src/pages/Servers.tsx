@@ -2,7 +2,11 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../App'
 
-const STATUS: Record<number, string> = { 0: '🟢 在线', 1: '🔴 离线', 2: '🟡 安装中' }
+const STATUS: Record<number, { text: string; cls: string }> = {
+  0: { text: '在线', cls: 'online' },
+  1: { text: '离线', cls: 'offline' },
+  2: { text: '安装中', cls: 'installing' }
+}
 
 export default function Servers() {
   const [servers, setServers] = useState<any[]>([])
@@ -60,6 +64,7 @@ export default function Servers() {
         </div>
       )}
 
+      <div className="table-wrap">
       <table>
         <thead>
           <tr><th>名称</th><th>地区</th><th>IP</th><th>状态</th><th>最后在线</th><th>操作</th></tr>
@@ -70,13 +75,14 @@ export default function Servers() {
               <td><a onClick={() => nav(`/servers/${s.id}`)}>{s.name}</a></td>
               <td>{s.region}</td>
               <td>{s.ipAddress}</td>
-              <td>{STATUS[s.status] || s.status}</td>
+              <td><span className={`badge ${STATUS[s.status]?.cls || 'offline'}`}><span className="dot" />{STATUS[s.status]?.text || s.status}</span></td>
               <td>{s.lastSeenAt ? new Date(s.lastSeenAt).toLocaleString() : '-'}</td>
-              <td><button className="danger" onClick={() => del(s.id)}>删除</button></td>
+              <td><button className="danger small" onClick={() => del(s.id)}>删除</button></td>
             </tr>
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   )
 }

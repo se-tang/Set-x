@@ -64,6 +64,7 @@ export default function Plans() {
         </div>
       )}
 
+      <div className="table-wrap">
       <table>
         <thead>
           <tr><th>名称</th><th>流量</th><th>限速</th><th>时长</th><th>价格</th><th>操作</th></tr>
@@ -71,16 +72,17 @@ export default function Plans() {
         <tbody>
           {plans.map((p: any) => (
             <tr key={p.id}>
-              <td>{p.name}</td>
+              <td><strong>{p.name}</strong></td>
               <td>{fmt(p.trafficLimitBytes)}</td>
               <td>{p.speedLimitMbps ? `${p.speedLimitMbps} Mbps` : '不限'}</td>
               <td>{p.durationDays} 天</td>
               <td>¥{p.price}</td>
-              <td><button className="danger" onClick={() => del(p.id)}>删除</button></td>
+              <td><button className="danger small" onClick={() => del(p.id)}>删除</button></td>
             </tr>
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   )
 }
