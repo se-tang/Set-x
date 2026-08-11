@@ -163,8 +163,11 @@ public class AgentWorker : BackgroundService
     {
         var ts = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
         var payload = $"{serverId}|{ts}";
+        // Master 存储的是 token 的 SHA256 十六进制——用它作为 HMAC 密钥（两边一致）
+        var keyHex = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(token)));
         using var hmac = new System.Security.Cryptography.HMACSHA256(
-            System.Text.Encoding.UTF8.GetBytes(token));
+            System.Text.Encoding.UTF8.GetBytes(keyHex));
         var hash = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(payload));
         return Convert.ToHexString(hash).ToLowerInvariant();
     }

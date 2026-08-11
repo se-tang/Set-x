@@ -15,7 +15,7 @@ if (File.Exists(configPath))
 {
     var yaml = File.ReadAllText(configPath);
     var deserializer = new DeserializerBuilder()
-        .WithNamingConvention(CamelCaseNamingConvention.Instance)
+        .WithNamingConvention(UnderscoredNamingConvention.Instance)
         .Build();
     agentConfig = deserializer.Deserialize<AgentConfig>(yaml);
 }

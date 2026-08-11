@@ -1,9 +1,12 @@
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Master.Domain.Entities;
 using Master.Infrastructure;
+using Master.Api.Hubs;
+using Master.Api.Services;
 
 namespace Master.Api.Controllers;
 
@@ -13,8 +16,13 @@ namespace Master.Api.Controllers;
 public class ServersController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly IHubContext<AgentHub> _hub;
 
-    public ServersController(AppDbContext db) => _db = db;
+    public ServersController(AppDbContext db, IHubContext<AgentHub> hub)
+    {
+        _db = db;
+        _hub = hub;
+    }
 
     [HttpGet]
     public async Task<IActionResult> List() =>
@@ -72,6 +80,7 @@ public class ServersController : ControllerBase
         node.ServerId = id;
         _db.Nodes.Add(node);
         await _db.SaveChangesAsync();
+        await PushConfigAsync(id);
         return Ok(node);
     }
 
@@ -87,6 +96,7 @@ public class ServersController : ControllerBase
         node.Enabled = req.Enabled;
         node.RateMultiplier = req.RateMultiplier;
         await _db.SaveChangesAsync();
+        await PushConfigAsync(node.ServerId);
         return Ok(node);
     }
 
@@ -95,9 +105,24 @@ public class ServersController : ControllerBase
     {
         var node = await _db.Nodes.FindAsync(id);
         if (node == null) return NotFound();
+        var serverId = node.ServerId;
         _db.Nodes.Remove(node);
         await _db.SaveChangesAsync();
+        await PushConfigAsync(serverId);
         return Ok(new { success = true });
+    }
+
+    /// <summary>生成该服务器完整 xray 配置并通过 SignalR 推送给在线 Agent</summary>
+    private async Task PushConfigAsync(Guid serverId)
+    {
+        var server = await _db.Servers.FindAsync(serverId);
+        if (server == null) return;
+        var nodes = await _db.Nodes.Where(n => n.ServerId == serverId).ToListAsync();
+        var config = XrayConfigBuilder.Build(server, nodes);
+
+        var connectionId = AgentHub.GetConnectionId(serverId);
+        if (connectionId != null)
+            await _hub.Clients.Client(connectionId).SendAsync("UpdateXrayConfig", config);
     }
 
     [HttpPost("nodes/{id:guid}/bindings")]
