@@ -18,8 +18,11 @@ public class Certificate
     public Guid ServerId { get; set; }
     public string Provider { get; set; } = "LetsEncrypt";
     public string DnsProviderConfigJson { get; set; } = "{}";
+    public string? CertPem { get; set; }
+    public string? KeyPem { get; set; }
     public DateTime ExpireAt { get; set; }
     public DateTime? LastRenewedAt { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
 public class AuditLog

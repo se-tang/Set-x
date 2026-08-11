@@ -90,6 +90,23 @@ public class AgentWorker : BackgroundService
         });
 
         _hub.On("StopXray", () => _xray.Stop());
+
+        // 证书下发：落地 PEM 文件（Xray 重载由配置变更触发）
+        _hub.On<string, string>("ApplyCertificate", (certPem, keyPem) =>
+        {
+            try
+            {
+                var certDir = Path.Combine(_config.WorkDir, "certs");
+                Directory.CreateDirectory(certDir);
+                File.WriteAllText(Path.Combine(certDir, "fullchain.pem"), certPem);
+                File.WriteAllText(Path.Combine(certDir, "privkey.pem"), keyPem);
+                _logger.LogInformation("证书已落地: {Dir}", certDir);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("证书落地失败: {Error}", ex.Message);
+            }
+        });
     }
 
     private async Task ReportStatusAsync(CancellationToken ct)

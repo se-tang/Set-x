@@ -20,6 +20,8 @@ builder.Services.AddSwaggerGen();
 // 业务服务
 builder.Services.AddScoped<Master.Api.Services.JwtService>();
 builder.Services.AddHostedService<Master.Api.Services.PlanEnforcementService>();
+builder.Services.AddScoped<Master.Api.Services.Certificates.CertificateService>();
+builder.Services.AddHostedService<Master.Api.Services.CertificateRenewalService>();
 
 // SignalR Agent Hub
 builder.Services.AddSignalR();
